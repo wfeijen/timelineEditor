@@ -4,7 +4,7 @@ import matplotlib
 matplotlib.use('Qt5Agg')  # Ensure the correct backend for PyQt5
 import matplotlib.pyplot as plt
 from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QLineEdit, QPushButton, QFormLayout, QHBoxLayout
-from PyQt5.QtCore import Qt
+# from PyQt5.QtCore import Qt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 import matplotlib.dates as mdates
 
@@ -73,6 +73,9 @@ class TaskTimelineEditor(QMainWindow):
 
         self.update_timeline()  # Initial drawing of the timeline
 
+        # Connect the canvas resize event to dynamically scale the labels
+        self.canvas.mpl_connect('resize_event', self.on_resize)
+
         # Connect the canvas click event to the task selection
         self.canvas.mpl_connect('button_press_event', self.on_canvas_click)
 
@@ -85,8 +88,8 @@ class TaskTimelineEditor(QMainWindow):
 
         # Set date formatting
         ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
-        ax.set_xlabel("Date")
-        ax.set_title("Task Timeline")
+        ax.set_xlabel("Date", fontsize = 20)
+        ax.set_title("Task Timeline", fontsize = 20)
 
         # Group tasks by project row
         row_groups = {}
@@ -110,17 +113,31 @@ class TaskTimelineEditor(QMainWindow):
                 rect.set_label(task["Task"])  # Store the task name in the label
                 self.rectangles.append((rect, task))  # Store the task with the corresponding rectangle
 
+                # Add task name to the center of the bar
+                ax.text(
+                    mdates.date2num(task["Start"]) + (task["End"] - task["Start"]).days / 2,
+                    row_position,
+                    task["Task"],
+                    ha="center", va="center", color="black", fontweight='bold', fontsize = 20)
+
         # Adjust Y-axis to show project names
         ax.set_yticks(range(1, len(row_labels) + 1))
-        ax.set_yticklabels(row_labels)
+        ax.set_yticklabels(row_labels, fontsize = 20, fontweight='bold')
 
-        plt.xticks(rotation=45)
+        # Scale the X-ticks (dates) with the window size
+        ax.tick_params(axis='x', labelsize=20)
 
         # Prevent layout issues
         self.figure.tight_layout()
 
         # Update canvas
         self.canvas.draw()
+
+    def get_scaled_font_size(self):
+        # Scale font size based on figure size
+        width, height = self.figure.get_size_inches()
+        scale_factor = width / 8  # Scale factor based on figure width (you can adjust this factor)
+        return max(10, int(scale_factor))  # Minimum font size of 10
 
     def add_task(self):
         name = self.task_name_entry.text()
@@ -175,6 +192,10 @@ class TaskTimelineEditor(QMainWindow):
 
         tasks.remove(self.selected_task)
         self.selected_task = None  # Clear selection
+        self.update_timeline()
+
+    def on_resize(self, event):
+        # Update the font size when resizing
         self.update_timeline()
 
     def on_canvas_click(self, event):
