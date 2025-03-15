@@ -168,6 +168,12 @@ class TaskTimelineEditor(QMainWindow):
             if rect.contains(event)[0]:  # Check if click is within the rectangle
                 self.selected_task = task
                 print(f"Selected task: {self.selected_task['Task']}")
+
+                # Populate the text boxes with the selected task information
+                self.task_name_entry.setText(self.selected_task["Task"])
+                self.start_date_entry.setText(self.selected_task["Start"].strftime("%Y-%m-%d"))
+                self.end_date_entry.setText(self.selected_task["End"].strftime("%Y-%m-%d"))
+
                 self.update_timeline()  # Re-render the timeline with the selected task highlighted
                 break  # Stop further checking after finding the clicked task
 
