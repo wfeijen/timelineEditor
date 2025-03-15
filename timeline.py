@@ -15,7 +15,6 @@ tasks = [
     {"Task": "Task f", "Start": datetime.date(2024, 3, 8), "End": datetime.date(2024, 3, 15)},
     {"Task": "Task g", "Start": datetime.date(2024, 3, 8), "End": datetime.date(2024, 3, 15)},
     {"Task": "Task h", "Start": datetime.date(2024, 3, 8), "End": datetime.date(2024, 3, 15)},
-        
 ]
 
 selected_task = None  # Track the currently selected task
@@ -46,7 +45,7 @@ def update_timeline():
 
     # Prevent layout issues
     fig.tight_layout()
-    
+
     # Update canvas
     canvas.draw()
 
@@ -57,7 +56,6 @@ def on_click(event):
     if event.inaxes is None:
         return  # Click was outside the graph
 
-    clicked_date = mdates.num2date(event.xdata).date() if event.xdata else None
     clicked_y = round(event.ydata) if event.ydata else None  # Get closest Y position
 
     if clicked_y and 1 <= clicked_y <= len(tasks):
@@ -162,10 +160,12 @@ tk.Button(btn_frame, text="Add Task", command=add_task).pack(side="left", padx=5
 tk.Button(btn_frame, text="Edit Task", command=edit_task).pack(side="left", padx=5)
 tk.Button(btn_frame, text="Delete Task", command=delete_task).pack(side="left", padx=5)
 
-# Matplotlib Figure
+# Matplotlib Figure (Ensure there's only one canvas here)
 fig, ax = plt.subplots(figsize=(8, 4))
 canvas = FigureCanvasTkAgg(fig, master=root)
 canvas_widget = canvas.get_tk_widget()
+
+# Place the canvas in the root window (only this canvas)
 canvas_widget.grid(row=4, column=0, sticky="nsew", padx=10, pady=10)
 
 # Bind events
