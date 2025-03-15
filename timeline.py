@@ -9,14 +9,14 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 import matplotlib.dates as mdates
 
 
-# Sample task data
+# Sample task data with multiple tasks per project (row)
 tasks = [
-    {"Task": "Task A", "Start": datetime.date(2024, 3, 1), "End": datetime.date(2024, 3, 5)},
-    {"Task": "Task B", "Start": datetime.date(2024, 3, 4), "End": datetime.date(2024, 3, 10)},
-    {"Task": "Task C", "Start": datetime.date(2024, 3, 8), "End": datetime.date(2024, 3, 15)},
-    {"Task": "Task D", "Start": datetime.date(2024, 3, 8), "End": datetime.date(2024, 3, 15)},
-    {"Task": "Task E", "Start": datetime.date(2024, 3, 8), "End": datetime.date(2024, 3, 15)},
-    {"Task": "Task F", "Start": datetime.date(2024, 3, 8), "End": datetime.date(2024, 3, 15)},
+    {"Task": "Task A", "Start": datetime.date(2024, 3, 1), "End": datetime.date(2024, 3, 5), "Row": "Project 1"},
+    {"Task": "Task B", "Start": datetime.date(2024, 3, 4), "End": datetime.date(2024, 3, 10), "Row": "Project 1"},
+    {"Task": "Task C", "Start": datetime.date(2024, 3, 8), "End": datetime.date(2024, 3, 15), "Row": "Project 1"},
+    {"Task": "Task D", "Start": datetime.date(2024, 3, 8), "End": datetime.date(2024, 3, 15), "Row": "Project 2"},
+    {"Task": "Task E", "Start": datetime.date(2024, 3, 8), "End": datetime.date(2024, 3, 15), "Row": "Project 2"},
+    {"Task": "Task F", "Start": datetime.date(2024, 3, 8), "End": datetime.date(2024, 3, 15), "Row": "Project 3"},
 ]
 
 selected_task = None  # Track the currently selected task
@@ -36,18 +36,20 @@ class TaskTimelineEditor(QMainWindow):
         layout = QVBoxLayout(self.central_widget)
 
         # Initialize the FigureCanvas without the self argument
-        self.figure = plt.Figure(figsize=(8, 4))
+        self.figure = plt.Figure(figsize=(8, 6))
         self.canvas = FigureCanvas(self.figure)  # Corrected the initialization
         layout.addWidget(self.canvas)
 
-        # Layout for task name, start date, and end date inputs
+        # Layout for task name, start date, end date, and row (project) inputs
         self.form_layout = QFormLayout()
         self.task_name_entry = QLineEdit(self)
         self.start_date_entry = QLineEdit(self)
         self.end_date_entry = QLineEdit(self)
+        self.row_name_entry = QLineEdit(self)  # Row (project) name input
         self.form_layout.addRow("Task Name", self.task_name_entry)
         self.form_layout.addRow("Start Date (YYYY-MM-DD)", self.start_date_entry)
         self.form_layout.addRow("End Date (YYYY-MM-DD)", self.end_date_entry)
+        self.form_layout.addRow("Row (Project Name)", self.row_name_entry)  # Row name entry
         layout.addLayout(self.form_layout)
 
         # Buttons
@@ -86,22 +88,31 @@ class TaskTimelineEditor(QMainWindow):
         ax.set_xlabel("Date")
         ax.set_title("Task Timeline")
 
-        # Generate Y positions so each task has its own row
-        y_positions = range(len(tasks), 0, -1)  # Highest task at the top
+        # Group tasks by project row
+        row_groups = {}
+        for task in tasks:
+            if task["Row"] not in row_groups:
+                row_groups[task["Row"]] = []
+            row_groups[task["Row"]].append(task)
 
-        # Draw each task on its own horizontal line
+        # Generate Y positions based on row (each row corresponds to a project)
+        row_labels = list(row_groups.keys())
+        y_positions = {row: idx + 1 for idx, row in enumerate(row_labels)}  # Assign Y positions to rows
+
+        # Draw each task on its respective row
         self.rectangles = []  # List to store all rectangle objects (bars)
-        for y, task in zip(y_positions, tasks):
+        for task in tasks:
             color = "orange" if task == self.selected_task else "skyblue"  # Highlight selected task
-            bar_container = ax.barh(y, (task["End"] - task["Start"]).days,
+            row_position = y_positions[task["Row"]]  # Get Y position for the task's row
+            bar_container = ax.barh(row_position, (task["End"] - task["Start"]).days,
                                     left=mdates.date2num(task["Start"]), color=color)
             for rect in bar_container:  # Extract each rectangle from the BarContainer
                 rect.set_label(task["Task"])  # Store the task name in the label
                 self.rectangles.append((rect, task))  # Store the task with the corresponding rectangle
 
-        # Adjust Y-axis to show tasks properly
-        ax.set_yticks(list(y_positions))
-        ax.set_yticklabels([task["Task"] for task in tasks])
+        # Adjust Y-axis to show project names
+        ax.set_yticks(range(1, len(row_labels) + 1))
+        ax.set_yticklabels(row_labels)
 
         plt.xticks(rotation=45)
 
@@ -115,6 +126,7 @@ class TaskTimelineEditor(QMainWindow):
         name = self.task_name_entry.text()
         start = self.start_date_entry.text()
         end = self.end_date_entry.text()
+        row = self.row_name_entry.text()
 
         try:
             start_date = datetime.datetime.strptime(start, "%Y-%m-%d").date()
@@ -123,7 +135,8 @@ class TaskTimelineEditor(QMainWindow):
             if start_date >= end_date:
                 raise ValueError("Start date must be before End date")
 
-            tasks.append({"Task": name, "Start": start_date, "End": end_date})
+            # Add the task with the row name specified by the user
+            tasks.append({"Task": name, "Start": start_date, "End": end_date, "Row": row})
             self.update_timeline()
 
         except ValueError as e:
@@ -137,6 +150,7 @@ class TaskTimelineEditor(QMainWindow):
         name = self.task_name_entry.text()
         start = self.start_date_entry.text()
         end = self.end_date_entry.text()
+        row = self.row_name_entry.text()
 
         try:
             start_date = datetime.datetime.strptime(start, "%Y-%m-%d").date()
@@ -148,6 +162,7 @@ class TaskTimelineEditor(QMainWindow):
             self.selected_task["Task"] = name
             self.selected_task["Start"] = start_date
             self.selected_task["End"] = end_date
+            self.selected_task["Row"] = row  # Update the row name
             self.update_timeline()
 
         except ValueError as e:
@@ -173,6 +188,7 @@ class TaskTimelineEditor(QMainWindow):
                 self.task_name_entry.setText(self.selected_task["Task"])
                 self.start_date_entry.setText(self.selected_task["Start"].strftime("%Y-%m-%d"))
                 self.end_date_entry.setText(self.selected_task["End"].strftime("%Y-%m-%d"))
+                self.row_name_entry.setText(self.selected_task["Row"])  # Show the row name (project)
 
                 self.update_timeline()  # Re-render the timeline with the selected task highlighted
                 break  # Stop further checking after finding the clicked task
