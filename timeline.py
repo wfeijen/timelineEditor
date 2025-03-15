@@ -90,11 +90,14 @@ class TaskTimelineEditor(QMainWindow):
         y_positions = range(len(tasks), 0, -1)  # Highest task at the top
 
         # Draw each task on its own horizontal line
+        self.rectangles = []  # List to store all rectangle objects (bars)
         for y, task in zip(y_positions, tasks):
             color = "orange" if task == self.selected_task else "skyblue"  # Highlight selected task
-            rect = ax.barh(y, (task["End"] - task["Start"]).days,
-                           left=mdates.date2num(task["Start"]), color=color)
-            rect.set_label(task["Task"])  # Store the task name in the label
+            bar_container = ax.barh(y, (task["End"] - task["Start"]).days,
+                                    left=mdates.date2num(task["Start"]), color=color)
+            for rect in bar_container:  # Extract each rectangle from the BarContainer
+                rect.set_label(task["Task"])  # Store the task name in the label
+                self.rectangles.append((rect, task))  # Store the task with the corresponding rectangle
 
         # Adjust Y-axis to show tasks properly
         ax.set_yticks(list(y_positions))
@@ -160,20 +163,13 @@ class TaskTimelineEditor(QMainWindow):
         self.update_timeline()
 
     def on_canvas_click(self, event):
-        # Get the task clicked on by checking the clicked coordinates
-        for rect in self.figure.axes[0].patches:
-            if rect.contains(event)[0]:  # Check if the mouse click is inside the rectangle
-                task_name = rect.get_label()
-
-                # Check if the task name exists and select it
-                found_task = next((task for task in tasks if task["Task"] == task_name), None)
-                if found_task:
-                    self.selected_task = found_task
-                    print(f"Selected task: {self.selected_task['Task']}")
-                    self.update_timeline()  # Re-render the timeline with the selected task highlighted
-                else:
-                    print(f"Task '{task_name}' not found.")
-                break
+        # Check for click in each rectangle (task bar)
+        for rect, task in self.rectangles:
+            if rect.contains(event)[0]:  # Check if click is within the rectangle
+                self.selected_task = task
+                print(f"Selected task: {self.selected_task['Task']}")
+                self.update_timeline()  # Re-render the timeline with the selected task highlighted
+                break  # Stop further checking after finding the clicked task
 
 
 # PyQt Application
