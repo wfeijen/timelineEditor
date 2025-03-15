@@ -1,177 +1,188 @@
-import tkinter as tk
-from tkinter import messagebox
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
+import sys
 import datetime
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import matplotlib
+matplotlib.use('Qt5Agg')  # Ensure the correct backend for PyQt5
+import matplotlib.pyplot as plt
+from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QLineEdit, QPushButton, QFormLayout, QHBoxLayout
+from PyQt5.QtCore import Qt
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+import matplotlib.dates as mdates
+
 
 # Sample task data
 tasks = [
     {"Task": "Task A", "Start": datetime.date(2024, 3, 1), "End": datetime.date(2024, 3, 5)},
     {"Task": "Task B", "Start": datetime.date(2024, 3, 4), "End": datetime.date(2024, 3, 10)},
     {"Task": "Task C", "Start": datetime.date(2024, 3, 8), "End": datetime.date(2024, 3, 15)},
-    {"Task": "Task d", "Start": datetime.date(2024, 3, 8), "End": datetime.date(2024, 3, 15)},
-    {"Task": "Task e", "Start": datetime.date(2024, 3, 8), "End": datetime.date(2024, 3, 15)},
-    {"Task": "Task f", "Start": datetime.date(2024, 3, 8), "End": datetime.date(2024, 3, 15)},
-    {"Task": "Task g", "Start": datetime.date(2024, 3, 8), "End": datetime.date(2024, 3, 15)},
-    {"Task": "Task h", "Start": datetime.date(2024, 3, 8), "End": datetime.date(2024, 3, 15)},
+    {"Task": "Task D", "Start": datetime.date(2024, 3, 8), "End": datetime.date(2024, 3, 15)},
+    {"Task": "Task E", "Start": datetime.date(2024, 3, 8), "End": datetime.date(2024, 3, 15)},
+    {"Task": "Task F", "Start": datetime.date(2024, 3, 8), "End": datetime.date(2024, 3, 15)},
 ]
 
 selected_task = None  # Track the currently selected task
 
-# Function to update the timeline
-def update_timeline():
-    ax.clear()  # Clear previous plot
 
-    # Set date formatting
-    ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
-    ax.set_xlabel("Date")
-    ax.set_title("Task Timeline")
+# PyQt Main Window Class
+class TaskTimelineEditor(QMainWindow):
+    def __init__(self):
+        super().__init__()
 
-    # Generate Y positions so each task has its own row
-    y_positions = range(len(tasks), 0, -1)  # Highest task at the top
+        self.setWindowTitle("Interactive Timeline Editor")
+        self.setGeometry(100, 100, 800, 600)
 
-    # Draw each task on its own horizontal line
-    for y, task in zip(y_positions, tasks):
-        color = "orange" if task == selected_task else "skyblue"  # Highlight selected task
-        ax.barh(y, (task["End"] - task["Start"]).days, 
-                left=mdates.date2num(task["Start"]), color=color, label=task["Task"])
+        self.central_widget = QWidget(self)
+        self.setCentralWidget(self.central_widget)
 
-    # Adjust Y-axis to show tasks properly
-    ax.set_yticks(list(y_positions))
-    ax.set_yticklabels([task["Task"] for task in tasks])
+        layout = QVBoxLayout(self.central_widget)
 
-    plt.xticks(rotation=45)
+        # Initialize the FigureCanvas without the self argument
+        self.figure = plt.Figure(figsize=(8, 4))
+        self.canvas = FigureCanvas(self.figure)  # Corrected the initialization
+        layout.addWidget(self.canvas)
 
-    # Prevent layout issues
-    fig.tight_layout()
+        # Layout for task name, start date, and end date inputs
+        self.form_layout = QFormLayout()
+        self.task_name_entry = QLineEdit(self)
+        self.start_date_entry = QLineEdit(self)
+        self.end_date_entry = QLineEdit(self)
+        self.form_layout.addRow("Task Name", self.task_name_entry)
+        self.form_layout.addRow("Start Date (YYYY-MM-DD)", self.start_date_entry)
+        self.form_layout.addRow("End Date (YYYY-MM-DD)", self.end_date_entry)
+        layout.addLayout(self.form_layout)
 
-    # Update canvas
-    canvas.draw()
+        # Buttons
+        self.buttons_layout = QHBoxLayout()
+        self.add_task_button = QPushButton("Add Task", self)
+        self.edit_task_button = QPushButton("Edit Task", self)
+        self.delete_task_button = QPushButton("Delete Task", self)
 
-# Function to detect clicked task
-def on_click(event):
-    global selected_task
+        self.buttons_layout.addWidget(self.add_task_button)
+        self.buttons_layout.addWidget(self.edit_task_button)
+        self.buttons_layout.addWidget(self.delete_task_button)
 
-    if event.inaxes is None:
-        return  # Click was outside the graph
+        layout.addLayout(self.buttons_layout)
 
-    clicked_y = round(event.ydata) if event.ydata else None  # Get closest Y position
+        # Connect button actions
+        self.add_task_button.clicked.connect(self.add_task)
+        self.edit_task_button.clicked.connect(self.edit_task)
+        self.delete_task_button.clicked.connect(self.delete_task)
 
-    if clicked_y and 1 <= clicked_y <= len(tasks):
-        selected_task = tasks[len(tasks) - clicked_y]  # Select task from Y position
-        task_name_entry.delete(0, tk.END)
-        task_name_entry.insert(0, selected_task["Task"])
-        start_date_entry.delete(0, tk.END)
-        start_date_entry.insert(0, str(selected_task["Start"]))
-        end_date_entry.delete(0, tk.END)
-        end_date_entry.insert(0, str(selected_task["End"]))
-        update_timeline()
+        self.selected_task = None  # Initially, no task is selected
 
-# Function to resize plot on window resize
-def resize_plot(event):
-    fig.set_size_inches(event.width / 100, event.height / 100)
-    update_timeline()
+        self.update_timeline()  # Initial drawing of the timeline
 
-# Function to add a new task
-def add_task():
-    name = task_name_entry.get()
-    start = start_date_entry.get()
-    end = end_date_entry.get()
-    
-    try:
-        start_date = datetime.datetime.strptime(start, "%Y-%m-%d").date()
-        end_date = datetime.datetime.strptime(end, "%Y-%m-%d").date()
-        if start_date >= end_date:
-            raise ValueError("Start date must be before End date")
-        
-        tasks.append({"Task": name, "Start": start_date, "End": end_date})
-        update_timeline()
-    
-    except ValueError as e:
-        messagebox.showerror("Invalid Input", str(e))
+        # Connect the canvas click event to the task selection
+        self.canvas.mpl_connect('button_press_event', self.on_canvas_click)
 
-# Function to delete a task
-def delete_task():
-    global selected_task
-    if not selected_task:
-        messagebox.showerror("Error", "No task selected!")
-        return
+    def update_timeline(self):
+        # Clear the canvas
+        self.figure.clf()
 
-    tasks.remove(selected_task)
-    selected_task = None  # Clear selection
-    update_timeline()
+        # Matplotlib part for plotting the timeline
+        ax = self.figure.add_subplot(111)
 
-# Function to edit a task
-def edit_task():
-    global selected_task
-    if not selected_task:
-        messagebox.showerror("Error", "No task selected!")
-        return
+        # Set date formatting
+        ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
+        ax.set_xlabel("Date")
+        ax.set_title("Task Timeline")
 
-    name = task_name_entry.get()
-    start = start_date_entry.get()
-    end = end_date_entry.get()
-    
-    try:
-        start_date = datetime.datetime.strptime(start, "%Y-%m-%d").date()
-        end_date = datetime.datetime.strptime(end, "%Y-%m-%d").date()
-        if start_date >= end_date:
-            raise ValueError("Start date must be before End date")
+        # Generate Y positions so each task has its own row
+        y_positions = range(len(tasks), 0, -1)  # Highest task at the top
 
-        selected_task["Task"] = name
-        selected_task["Start"] = start_date
-        selected_task["End"] = end_date
-        update_timeline()
-    
-    except ValueError as e:
-        messagebox.showerror("Invalid Input", str(e))
+        # Draw each task on its own horizontal line
+        for y, task in zip(y_positions, tasks):
+            color = "orange" if task == self.selected_task else "skyblue"  # Highlight selected task
+            rect = ax.barh(y, (task["End"] - task["Start"]).days,
+                           left=mdates.date2num(task["Start"]), color=color)
+            rect.set_label(task["Task"])  # Store the task name in the label
 
-# Tkinter GUI
-root = tk.Tk()
-root.title("Interactive Timeline Editor")
-root.geometry("800x600")
+        # Adjust Y-axis to show tasks properly
+        ax.set_yticks(list(y_positions))
+        ax.set_yticklabels([task["Task"] for task in tasks])
 
-# Make the grid expand with resizing
-root.columnconfigure(0, weight=1)
-root.rowconfigure(4, weight=1)
+        plt.xticks(rotation=45)
 
-# Input Fields
-input_frame = tk.Frame(root)
-input_frame.grid(row=0, column=0, sticky="ew", padx=10, pady=5)
+        # Prevent layout issues
+        self.figure.tight_layout()
 
-tk.Label(input_frame, text="Task Name:").grid(row=0, column=0)
-task_name_entry = tk.Entry(input_frame)
-task_name_entry.grid(row=0, column=1)
+        # Update canvas
+        self.canvas.draw()
 
-tk.Label(input_frame, text="Start Date (YYYY-MM-DD):").grid(row=1, column=0)
-start_date_entry = tk.Entry(input_frame)
-start_date_entry.grid(row=1, column=1)
+    def add_task(self):
+        name = self.task_name_entry.text()
+        start = self.start_date_entry.text()
+        end = self.end_date_entry.text()
 
-tk.Label(input_frame, text="End Date (YYYY-MM-DD):").grid(row=2, column=0)
-end_date_entry = tk.Entry(input_frame)
-end_date_entry.grid(row=2, column=1)
+        try:
+            start_date = datetime.datetime.strptime(start, "%Y-%m-%d").date()
+            end_date = datetime.datetime.strptime(end, "%Y-%m-%d").date()
 
-# Buttons
-btn_frame = tk.Frame(root)
-btn_frame.grid(row=1, column=0, sticky="ew", padx=10, pady=5)
+            if start_date >= end_date:
+                raise ValueError("Start date must be before End date")
 
-tk.Button(btn_frame, text="Add Task", command=add_task).pack(side="left", padx=5)
-tk.Button(btn_frame, text="Edit Task", command=edit_task).pack(side="left", padx=5)
-tk.Button(btn_frame, text="Delete Task", command=delete_task).pack(side="left", padx=5)
+            tasks.append({"Task": name, "Start": start_date, "End": end_date})
+            self.update_timeline()
 
-# Matplotlib Figure (Ensure there's only one canvas here)
-fig, ax = plt.subplots(figsize=(8, 4))
-canvas = FigureCanvasTkAgg(fig, master=root)
-canvas_widget = canvas.get_tk_widget()
+        except ValueError as e:
+            print(f"Error: {e}")
 
-# Place the canvas in the root window (only this canvas)
-canvas_widget.grid(row=4, column=0, sticky="nsew", padx=10, pady=10)
+    def edit_task(self):
+        if not self.selected_task:
+            print("No task selected!")
+            return
 
-# Bind events
-root.bind("<Configure>", resize_plot)  # Resize event
-canvas.mpl_connect("button_press_event", on_click)  # Click event
+        name = self.task_name_entry.text()
+        start = self.start_date_entry.text()
+        end = self.end_date_entry.text()
 
-update_timeline()  # Ensure the initial plot is shown
+        try:
+            start_date = datetime.datetime.strptime(start, "%Y-%m-%d").date()
+            end_date = datetime.datetime.strptime(end, "%Y-%m-%d").date()
 
-root.mainloop()
+            if start_date >= end_date:
+                raise ValueError("Start date must be before End date")
+
+            self.selected_task["Task"] = name
+            self.selected_task["Start"] = start_date
+            self.selected_task["End"] = end_date
+            self.update_timeline()
+
+        except ValueError as e:
+            print(f"Error: {e}")
+
+    def delete_task(self):
+        if not self.selected_task:
+            print("No task selected!")
+            return
+
+        tasks.remove(self.selected_task)
+        self.selected_task = None  # Clear selection
+        self.update_timeline()
+
+    def on_canvas_click(self, event):
+        # Get the task clicked on by checking the clicked coordinates
+        for rect in self.figure.axes[0].patches:
+            if rect.contains(event)[0]:  # Check if the mouse click is inside the rectangle
+                task_name = rect.get_label()
+
+                # Check if the task name exists and select it
+                found_task = next((task for task in tasks if task["Task"] == task_name), None)
+                if found_task:
+                    self.selected_task = found_task
+                    print(f"Selected task: {self.selected_task['Task']}")
+                    self.update_timeline()  # Re-render the timeline with the selected task highlighted
+                else:
+                    print(f"Task '{task_name}' not found.")
+                break
+
+
+# PyQt Application
+def main():
+    app = QApplication(sys.argv)
+    window = TaskTimelineEditor()
+    window.show()
+    sys.exit(app.exec_())
+
+
+if __name__ == "__main__":
+    main()
