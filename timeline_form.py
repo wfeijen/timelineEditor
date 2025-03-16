@@ -33,16 +33,16 @@ class chapterTimelineEditor(QMainWindow):
         self.canvas = FigureCanvas(self.figure)  # Corrected the initialization
         layout.addWidget(self.canvas)
 
-        # Layout for chapter name, startdate date, duur, and plot (project) inputs
+        # Layout for chapter name, startdate date, enddate date, and plot (project) inputs
         self.form_layout = QFormLayout()
         self.chapter_name_entry = QLineEdit(self)
         self.startdate_date_entry = QLineEdit(self)
-        self.duur_entry = QLineEdit(self)
+        self.enddate_date_entry = QLineEdit(self)
         self.plot_name_entry = QLineEdit(self)  # plot (project) name input
         self.synopsis_name_entry = QPlainTextEdit(self)
         self.form_layout.addRow("chapter Name", self.chapter_name_entry)
         self.form_layout.addRow("startdate Date (YYYY-MM-DD)", self.startdate_date_entry)
-        self.form_layout.addRow("duur ", self.duur_entry)
+        self.form_layout.addRow("enddate Date (YYYY-MM-DD)", self.enddate_date_entry)
         self.form_layout.addRow("plot", self.plot_name_entry)  # plot name entry
         self.form_layout.addRow("synopsis", self.synopsis_name_entry)  # plot name entry
         layout.addLayout(self.form_layout)
@@ -203,21 +203,22 @@ class chapterTimelineEditor(QMainWindow):
 
         name = self.chapter_name_entry.text()
         startdate = self.startdate_date_entry.text()
-        duur = self.duur_entry.text()
+        enddate = self.enddate_date_entry.text()
         plot = self.plot_name_entry.text()
         synopsis = self.synopsis_name_entry.toPlainText() 
 
         try:
-            duur = int(duur)
+            startdate_datetime = datetime.datetime.strptime(startdate, "%Y-%m-%d")
         except ValueError as e:
-            duur = 1
+            print(f"Error: {e}")
 
         try:
-            startdate_datetime = datetime.datetime.strptime(startdate, "%Y-%m-%d")
-            enddate_datetime = startdate_datetime + datetime.timedelta(days=duur)
+            enddate_datetime = datetime.datetime.strptime(enddate, "%Y-%m-%d")
+            if startdate_datetime >= enddate_datetime:
+                enddate_datetime = startdate_datetime + datetime.timedelta(days=1)
         except ValueError as e:
-            print(f"Error: {e}")   
-       
+            enddate_datetime = startdate_datetime + datetime.timedelta(days=1)
+        
         try:
             self.selected_chapter["chapter"] = name
             self.selected_chapter["startdate"] = startdate_datetime
@@ -249,7 +250,7 @@ class chapterTimelineEditor(QMainWindow):
                 # Populate the text boxes with the selected chapter information
                 self.chapter_name_entry.setText(self.selected_chapter["chapter"])
                 self.startdate_date_entry.setText(self.selected_chapter["startdate"].strftime("%Y-%m-%d"))
-                self.duur_entry.setText(str((self.selected_chapter["enddate"]-self.selected_chapter["startdate"]).days))
+                self.enddate_date_entry.setText(self.selected_chapter["enddate"].strftime("%Y-%m-%d"))
                 self.plot_name_entry.setText(self.selected_chapter["plot"])  # Show the plot name (project)
                 self.synopsis_name_entry.setPlainText(self.selected_chapter["synopsis"])
 
