@@ -8,6 +8,8 @@ class File_handler:
         metadata = {"chapter": None, "path": None, "plot": "geen_plot", "synopsis": "", "startdate": None, "enddate": None}
         time_values = []
         
+        synopsis_value = None
+        plot_value = None
         with open(self.path, "r", encoding="utf-8") as file:
             for line in file:
                 if line.startswith("%%~name:"):
@@ -16,26 +18,26 @@ class File_handler:
                     metadata["path"] = self.path.strip()
                 elif line.startswith("@plot:"):
                     plot_value = line.split("@plot:")[1].strip()
-                    if plot_value:
-                        metadata["plot"] = plot_value                
                 elif line.startswith("% Synopsis:"):
                     synopsis_value = line.split("% Synopsis:")[1].strip()
-                    if synopsis_value:
-                        metadata["synopsis"] = synopsis_value
                 elif line.startswith("@time:"):
                     time_value = line.split("@time:")[1].strip()
                     try:
                         time_values.append(datetime.strptime(time_value, "%Y-%m-%d"))
                     except ValueError:
                         continue
-        
+
         if time_values:
             metadata["startdate"] = min(time_values)
             metadata["enddate"] = max(time_values) if len(time_values) > 1 else (time_values[0] + timedelta(days=1))
         else:
             return None
-        
+        if plot_value:
+            metadata["plot"] = plot_value
+        if synopsis_value:
+            metadata["synopsis"] = synopsis_value     
         return metadata
+    
     
     def set_metadata(self, metadata):
         with open(self.path, "r", encoding="utf-8") as file:

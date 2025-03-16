@@ -1,13 +1,13 @@
 import sys
 import datetime
 import matplotlib
-matplotlib.use('Qt5Agg')  # Ensure the correct backend for PyQt5
 import matplotlib.pyplot as plt
-from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QLineEdit, QPushButton, QFormLayout, QHBoxLayout, QPlainTextEdit
-# from PyQt5.QtCore import Qt
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 import matplotlib.dates as mdates
+from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QLineEdit, QPushButton, QFormLayout, QHBoxLayout, QPlainTextEdit, QLabel, QSlider
+from PyQt5.QtCore import Qt
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from Directory_handler import Directory_handler
+matplotlib.use('Qt5Agg')  # Ensure the correct backend for PyQt5
 
 
 # PyQt Main Window Class
@@ -60,6 +60,28 @@ class chapterTimelineEditor(QMainWindow):
         # Connect button actions
         self.update_chapter_button.clicked.connect(self.update_chapter)
         self.save_timelines_button.clicked.connect(self.save_timelines)
+
+        # Add sliders for filtering by start and end dates
+        self.start_slider_label = QLabel("Start: N/A", self)
+        self.start_slider = QSlider(Qt.Horizontal)
+        self.start_slider.setTickInterval(1)
+        self.start_slider.setSingleStep(1)
+        layout.addWidget(self.start_slider_label)
+        layout.addWidget(self.start_slider)
+
+        self.end_slider_label = QLabel("End: N/A", self)
+        self.end_slider = QSlider(Qt.Horizontal)
+        self.end_slider.setTickInterval(1)
+        self.end_slider.setSingleStep(1)
+        layout.addWidget(self.end_slider_label)
+        layout.addWidget(self.end_slider)
+
+        # Set slider limits
+        self.setup_sliders()
+
+        # Connect slider events
+        self.start_slider.valueChanged.connect(self.update_slider_labels)
+        self.end_slider.valueChanged.connect(self.update_slider_labels)
     
         self.selected_chapter = None  # Initially, no chapter is selected
 
@@ -70,6 +92,41 @@ class chapterTimelineEditor(QMainWindow):
 
         # Connect the canvas click event to the chapter selection
         self.canvas.mpl_connect('button_press_event', self.on_canvas_click)
+        
+    
+    def setup_sliders(self):
+        """Initialize sliders based on data range."""
+        if not self.chapterlist:
+            return
+
+        min_date = min(ch["startdate"] for ch in self.chapterlist)
+        max_date = max(ch["enddate"] for ch in self.chapterlist)
+
+        # Convert dates to numerical format for sliders
+        min_num = mdates.date2num(min_date)
+        max_num = mdates.date2num(max_date)
+
+        self.start_slider.setMinimum(int(min_num))
+        self.start_slider.setMaximum(int(max_num))
+        self.start_slider.setValue(int(min_num))
+
+        self.end_slider.setMinimum(int(min_num))
+        self.end_slider.setMaximum(int(max_num))
+        self.end_slider.setValue(int(max_num))
+
+        self.update_slider_labels()
+
+    def update_slider_labels(self):
+        start_filter = mdates.num2date(self.start_slider.value()).replace(tzinfo=None)
+        end_filter = mdates.num2date(self.end_slider.value()).replace(tzinfo=None)
+
+        if start_filter > end_filter:
+            return  
+
+        self.start_slider_label.setText(f"Start: {start_filter.strftime('%Y-%m-%d')}")
+        self.end_slider_label.setText(f"End: {end_filter.strftime('%Y-%m-%d')}")
+
+        self.update_timeline()
 
     def update_timeline(self):
         # Clear the canvas
@@ -78,6 +135,14 @@ class chapterTimelineEditor(QMainWindow):
         # Matplotlib part for plotting the timeline
         ax = self.figure.add_subplot(111)
 
+        start_filter = mdates.num2date(self.start_slider.value()).replace(tzinfo=None)
+        end_filter = mdates.num2date(self.end_slider.value()).replace(tzinfo=None)
+
+        filtered_chapters = [
+            ch for ch in self.chapterlist 
+            if ch["startdate"] >= start_filter and ch["enddate"] <= end_filter
+        ]
+
         # Set date formatting
         ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
         ax.set_xlabel("Date", fontsize = 20)
@@ -85,7 +150,7 @@ class chapterTimelineEditor(QMainWindow):
 
         # Group chapters by plot
         plot_groups = {}
-        for chapter in self.chapterlist:
+        for chapter in filtered_chapters:
             if chapter["plot"] not in plot_groups:
                 plot_groups[chapter["plot"]] = []
             plot_groups[chapter["plot"]].append(chapter)
@@ -96,7 +161,7 @@ class chapterTimelineEditor(QMainWindow):
 
         # Draw each chapter on its respective plot
         self.rectangles = []  # List to store all rectangle objects (bars)
-        for chapter in self.chapterlist:
+        for chapter in filtered_chapters:
             color = "orange" if chapter == self.selected_chapter else "skyblue"  # Highlight selected chapter
             plot_position = y_positions[chapter["plot"]]  # Get Y position for the chapter's plot
             bar_container = ax.barh(plot_position, (chapter["enddate"] - chapter["startdate"]).days,
@@ -143,17 +208,20 @@ class chapterTimelineEditor(QMainWindow):
         synopsis = self.synopsis_name_entry.toPlainText() 
 
         try:
-            startdate_date = datetime.datetime.strptime(startdate, "%Y-%m-%d").date()
-            enddate_date = datetime.datetime.strptime(enddate, "%Y-%m-%d").date()
+            startdate_datetime = datetime.datetime.strptime(startdate, "%Y-%m-%d")
+            enddate_datetime = datetime.datetime.strptime(enddate, "%Y-%m-%d")
 
-            if startdate_date >= enddate_date:
+            if startdate_datetime >= enddate_datetime:
                 raise ValueError("startdate date must be before enddate date")
 
             self.selected_chapter["chapter"] = name
-            self.selected_chapter["startdate"] = startdate_date
-            self.selected_chapter["enddate"] = enddate_date
+            self.selected_chapter["startdate"] = startdate_datetime
+            self.selected_chapter["enddate"] = enddate_datetime
             self.selected_chapter["plot"] = plot  # Update the plot name
             self.selected_chapter["synopsis"] = synopsis  # Update the plot name
+
+            if mdates.date2num(startdate_datetime) < self.start_slider.minimum() or mdates.date2num(enddate_datetime) > self.end_slider.maximum():
+                self.setup_sliders()
             self.update_timeline()
 
         except ValueError as e:
