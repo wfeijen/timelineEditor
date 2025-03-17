@@ -159,31 +159,36 @@ class chapterTimelineEditor(QMainWindow):
         # Group chapters by plot
         plot_groups = {}
         for chapter in filtered_chapters:
-            if chapter["plot"] not in plot_groups:
-                plot_groups[chapter["plot"]] = []
-            plot_groups[chapter["plot"]].append(chapter)
+            plot_list = chapter["plot"].split(",")
+            for plot in plot_list:
+                if plot not in plot_groups:
+                    plot_groups[plot] = []
+                plot_groups[plot].append(chapter)
 
+        
         # Generate Y positions based on plot (each plot corresponds to a project)
-        plot_labels = list(plot_groups.keys())
+        plot_labels = sorted(list(plot_groups.keys()), reverse=True)
         y_positions = {plot: idx + 1 for idx, plot in enumerate(plot_labels)}  # Assign Y positions to plots
 
         # Draw each chapter on its respective plot
         self.rectangles = []  # List to store all rectangle objects (bars)
         for chapter in filtered_chapters:
             color = "orange" if chapter == self.selected_chapter else "skyblue"  # Highlight selected chapter
-            plot_position = y_positions[chapter["plot"]]  # Get Y position for the chapter's plot
-            bar_container = ax.barh(plot_position, (chapter["enddate"] - chapter["startdate"]).days,
-                                    left=mdates.date2num(chapter["startdate"]), color=color)
-            for rect in bar_container:  # Extract each rectangle from the BarContainer
-                rect.set_label(chapter["chapter"])  # Store the chapter name in the label
-                self.rectangles.append((rect, chapter))  # Store the chapter with the corresponding rectangle
+            plot_list = chapter["plot"].split(",")
+            for plot in plot_list:
+                plot_position = y_positions[plot]  # Get Y position for the chapter's plot
+                bar_container = ax.barh(plot_position, (chapter["enddate"] - chapter["startdate"]).days,
+                                        left=mdates.date2num(chapter["startdate"]), color=color)
+                for rect in bar_container:  # Extract each rectangle from the BarContainer
+                    rect.set_label(chapter["chapter"])  # Store the chapter name in the label
+                    self.rectangles.append((rect, chapter))  # Store the chapter with the corresponding rectangle
 
-                # Add chapter name to the center of the bar
-                ax.text(
-                    mdates.date2num(chapter["startdate"]) + (chapter["enddate"] - chapter["startdate"]).days / 2,
-                    plot_position,
-                    chapter["chapter"],
-                    ha="center", va="center", color="black", fontsize = 20)
+                    # Add chapter name to the center of the bar
+                    ax.text(
+                        mdates.date2num(chapter["startdate"]) + (chapter["enddate"] - chapter["startdate"]).days / 2,
+                        plot_position,
+                        chapter["chapter"],
+                        ha="center", va="center", color="black", fontsize = 20)
 
         # Adjust Y-axis to show names
         ax.set_yticks(range(1, len(plot_labels) + 1))
