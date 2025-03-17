@@ -3,7 +3,7 @@ import datetime
 import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QLineEdit, QPushButton, QFormLayout, QHBoxLayout, QPlainTextEdit, QLabel, QSlider
+from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QLineEdit, QPushButton, QFormLayout, QHBoxLayout, QPlainTextEdit, QLabel, QSlider, QDateEdit
 from PyQt5.QtCore import Qt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from Directory_handler import Directory_handler
@@ -21,7 +21,7 @@ class chapterTimelineEditor(QMainWindow):
         self.selected_chapter = None  # Track the currently selected chapter
 
         self.setWindowTitle("Interactive Timeline Editor")
-        self.setGeometry(0, 0, 1800, 1600)
+        self.setGeometry(0, 0, 1920, 1600)
 
         self.central_widget = QWidget(self)
         self.setCentralWidget(self.central_widget)
@@ -29,37 +29,45 @@ class chapterTimelineEditor(QMainWindow):
         layout = QVBoxLayout(self.central_widget)
 
         # Initialize the FigureCanvas without the self argument
-        self.figure = plt.Figure(figsize=(8, 6))
+        self.figure = plt.Figure(figsize=(1, 20))
         self.canvas = FigureCanvas(self.figure)  # Corrected the initialization
         layout.addWidget(self.canvas)
 
         # Layout for chapter name, startdate date, duur, and plot (project) inputs
         self.form_layout = QFormLayout()
         self.chapter_name_entry = QLineEdit(self)
-        self.startdate_date_entry = QLineEdit(self)
+        self.startdate_date_entry = QDateEdit(calendarPopup=True)
+        self.startdate_date_entry.setDisplayFormat("yyyy-MM-dd")
         self.duur_entry = QLineEdit(self)
-        self.plot_name_entry = QLineEdit(self)  # plot (project) name input
+        self.plot_name_entry = QLineEdit(self)
+        self.pov_name_entry = QLineEdit(self)
+        self.char_name_entry = QLineEdit(self)
         self.synopsis_name_entry = QPlainTextEdit(self)
         self.form_layout.addRow("chapter Name", self.chapter_name_entry)
         self.form_layout.addRow("startdate Date (YYYY-MM-DD)", self.startdate_date_entry)
         self.form_layout.addRow("duur ", self.duur_entry)
-        self.form_layout.addRow("plot", self.plot_name_entry)  # plot name entry
-        self.form_layout.addRow("synopsis", self.synopsis_name_entry)  # plot name entry
+        self.form_layout.addRow("plot", self.plot_name_entry)
+        self.form_layout.addRow("pov", self.pov_name_entry)
+        self.form_layout.addRow("char", self.char_name_entry)
+        self.form_layout.addRow("synopsis", self.synopsis_name_entry)
         layout.addLayout(self.form_layout)
 
         # Buttons
         self.buttons_layout = QHBoxLayout()
         self.update_chapter_button = QPushButton("Update chapter", self)
         self.save_timelines_button = QPushButton("Save timelines", self)
+        self.reload_timelines_button = QPushButton("Reload timelines", self)
      
         self.buttons_layout.addWidget(self.update_chapter_button)
         self.buttons_layout.addWidget(self.save_timelines_button)
+        self.buttons_layout.addWidget(self.reload_timelines_button)
     
         layout.addLayout(self.buttons_layout)
 
         # Connect button actions
         self.update_chapter_button.clicked.connect(self.update_chapter)
         self.save_timelines_button.clicked.connect(self.save_timelines)
+        self.reload_timelines_button.clicked.connect(self.reload_timelines)
 
         # Add sliders for filtering by start and end dates
         self.start_slider_label = QLabel("Start: N/A", self)
@@ -135,8 +143,8 @@ class chapterTimelineEditor(QMainWindow):
         # Matplotlib part for plotting the timeline
         ax = self.figure.add_subplot(111)
 
-        start_filter = mdates.num2date(self.start_slider.value()).replace(tzinfo=None)
-        end_filter = mdates.num2date(self.end_slider.value()).replace(tzinfo=None)
+        start_filter = mdates.num2date(self.start_slider.value()).date()
+        end_filter = mdates.num2date(self.end_slider.value()).date()
 
         filtered_chapters = [
             ch for ch in self.chapterlist 
@@ -202,9 +210,11 @@ class chapterTimelineEditor(QMainWindow):
             return
 
         name = self.chapter_name_entry.text()
-        startdate = self.startdate_date_entry.text()
+        startdate_datetime = self.startdate_date_entry.date().toPyDate()
         duur = self.duur_entry.text()
         plot = self.plot_name_entry.text()
+        pov = self.pov_name_entry.text()
+        char = self.char_name_entry.text()
         synopsis = self.synopsis_name_entry.toPlainText() 
 
         try:
@@ -213,7 +223,6 @@ class chapterTimelineEditor(QMainWindow):
             duur = 1
 
         try:
-            startdate_datetime = datetime.datetime.strptime(startdate, "%Y-%m-%d")
             enddate_datetime = startdate_datetime + datetime.timedelta(days=duur)
         except ValueError as e:
             print(f"Error: {e}")   
@@ -222,8 +231,10 @@ class chapterTimelineEditor(QMainWindow):
             self.selected_chapter["chapter"] = name
             self.selected_chapter["startdate"] = startdate_datetime
             self.selected_chapter["enddate"] = enddate_datetime
-            self.selected_chapter["plot"] = plot  # Update the plot name
-            self.selected_chapter["synopsis"] = synopsis  # Update the plot name
+            self.selected_chapter["plot"] = plot
+            self.selected_chapter["pov"] = pov
+            self.selected_chapter["char"] = char
+            self.selected_chapter["synopsis"] = synopsis
 
             if mdates.date2num(startdate_datetime) < self.start_slider.minimum() or mdates.date2num(enddate_datetime) > self.end_slider.maximum():
                 self.setup_sliders()
@@ -234,6 +245,11 @@ class chapterTimelineEditor(QMainWindow):
     
     def save_timelines(self):
         self.directory_handler.set_metadata(self.chapterlist)
+
+    def reload_timelines(self):
+        self.chapterlist = self.directory_handler.get_metadata()
+        self.selected_chapter = None  # Track the currently selected chapter
+        self.update_timeline()
 
     def on_resize(self, event):
         # Update the font size when resizing
@@ -248,9 +264,11 @@ class chapterTimelineEditor(QMainWindow):
 
                 # Populate the text boxes with the selected chapter information
                 self.chapter_name_entry.setText(self.selected_chapter["chapter"])
-                self.startdate_date_entry.setText(self.selected_chapter["startdate"].strftime("%Y-%m-%d"))
+                self.startdate_date_entry.setDate(self.selected_chapter["startdate"])
                 self.duur_entry.setText(str((self.selected_chapter["enddate"]-self.selected_chapter["startdate"]).days))
-                self.plot_name_entry.setText(self.selected_chapter["plot"])  # Show the plot name (project)
+                self.plot_name_entry.setText(self.selected_chapter["plot"])
+                self.pov_name_entry.setText(self.selected_chapter["pov"])
+                self.char_name_entry.setText(self.selected_chapter["char"])
                 self.synopsis_name_entry.setPlainText(self.selected_chapter["synopsis"])
 
                 self.update_timeline()  # Re-renddateer the timeline with the selected chapter highlighted

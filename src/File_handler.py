@@ -5,7 +5,7 @@ class File_handler:
         self.path = path
  
     def get_metadata(self):
-        metadata = {"chapter": None, "path": None, "plot": "geen_plot", "synopsis": "", "startdate": None, "enddate": None}
+        metadata = {"chapter": None, "path": None, "plot": "", "pov": "D", "char": "", "synopsis": "", "startdate": None, "enddate": None}
         time_values = []
         
         synopsis_value = None
@@ -14,16 +14,18 @@ class File_handler:
             for line in file:
                 if line.startswith("%%~name:"):
                     metadata["chapter"] = line.split("%%~name:")[1].strip()
-                elif line.startswith("%%~path: 38afc2dd349ba/"):
-                    metadata["path"] = self.path.strip()
                 elif line.startswith("@plot:"):
                     plot_value = line.split("@plot:")[1].strip()
+                elif line.startswith("@pov:"):
+                    metadata["pov"] = line.split("@pov:")[1].strip()
+                elif line.startswith("@char:"):
+                    metadata["char"] = line.split("@char:")[1].strip()
                 elif line.startswith("% Synopsis:"):
                     synopsis_value = line.split("% Synopsis:")[1].strip()
                 elif line.startswith("@time:"):
                     time_value = line.split("@time:")[1].strip()
                     try:
-                        time_values.append(datetime.strptime(time_value, "%Y-%m-%d"))
+                        time_values.append(datetime.strptime(time_value, "%Y-%m-%d").date())
                     except ValueError:
                         continue
 
@@ -35,7 +37,8 @@ class File_handler:
         if plot_value:
             metadata["plot"] = plot_value
         if synopsis_value:
-            metadata["synopsis"] = synopsis_value     
+            metadata["synopsis"] = synopsis_value   
+        metadata["path"] = self.path.strip()  
         return metadata
     
     
@@ -43,7 +46,7 @@ class File_handler:
         with open(self.path, "r", encoding="utf-8") as file:
             lines = file.readlines()                
             # Remove existing @plot: and @time:
-        lines = [line for line in lines if not line.startswith("@plot:") and not line.startswith("@time:") and not line.startswith("% Synopsis:")]
+        lines = [line for line in lines if not line.startswith("@plot:") and not line.startswith("@pov:") and not line.startswith("@char:") and not line.startswith("@time:") and not line.startswith("% Synopsis:")]
         
         # Add new metadata 
         updated_lines = [line for line in lines if False]
@@ -53,6 +56,8 @@ class File_handler:
                 updated_lines.append(f"@plot: {metadata['plot']}\n")
                 updated_lines.append(f"@time: {metadata['startdate'].strftime('%Y-%m-%d')}\n")
                 updated_lines.append(f"@time: {metadata['enddate'].strftime('%Y-%m-%d')}\n")
+                updated_lines.append(f"@pov: {metadata['pov']}\n")
+                updated_lines.append(f"@char: {metadata['char']}\n")
                 updated_lines.append(f"% Synopsis: {metadata['synopsis']}\n")
         with open(self.path, "w", encoding="utf-8") as file:
             file.writelines(updated_lines)

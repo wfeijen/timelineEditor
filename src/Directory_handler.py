@@ -27,8 +27,12 @@ class Directory_handler:
         return sorted_data
     
     def set_metadata(self, df_metadata):
-        for row in df_metadata:
-            self.file_handlers[row["path"]].set_metadata(row)
+        try:
+            for row in df_metadata:
+                self.file_handlers[row["path"]].set_metadata(row)
+        except KeyError as e:
+            print(f"Error: {e}")
+            print(row)
 
 
 def main():
