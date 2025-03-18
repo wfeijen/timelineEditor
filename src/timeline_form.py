@@ -51,6 +51,7 @@ class chapterTimelineEditor(QMainWindow):
         self.form_layout.addRow("char", self.char_name_entry)
         self.form_layout.addRow("synopsis", self.synopsis_name_entry)
         layout.addLayout(self.form_layout)
+     
 
         # Buttons
         self.buttons_layout = QHBoxLayout()
@@ -139,6 +140,8 @@ class chapterTimelineEditor(QMainWindow):
     def update_timeline(self):
         # Clear the canvas
         self.figure.clf()
+        scaledFontSize = self.get_scaled_font_size()
+        vertical_positions = ['top', 'bottom', 'center']
 
         # Matplotlib part for plotting the timeline
         ax = self.figure.add_subplot(111)
@@ -153,14 +156,15 @@ class chapterTimelineEditor(QMainWindow):
 
         # Set date formatting
         ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
-        ax.set_xlabel("Date", fontsize = 20)
-        ax.set_title("chapter Timeline", fontsize = 20)
+        ax.set_xlabel("Date", fontsize = scaledFontSize)
+        ax.set_title("chapter Timeline", fontsize = scaledFontSize)
 
         # Group chapters by plot
         plot_groups = {}
         for chapter in filtered_chapters:
             plot_list = chapter["plot"].split(",")
-            for plot in plot_list:
+            for p in plot_list:
+                plot = p.strip()
                 if plot not in plot_groups:
                     plot_groups[plot] = []
                 plot_groups[plot].append(chapter)
@@ -172,10 +176,12 @@ class chapterTimelineEditor(QMainWindow):
 
         # Draw each chapter on its respective plot
         self.rectangles = []  # List to store all rectangle objects (bars)
+        j = 0
         for chapter in filtered_chapters:
             color = "orange" if chapter == self.selected_chapter else "skyblue"  # Highlight selected chapter
             plot_list = chapter["plot"].split(",")
-            for plot in plot_list:
+            for p in plot_list:
+                plot = p.strip()
                 plot_position = y_positions[plot]  # Get Y position for the chapter's plot
                 bar_container = ax.barh(plot_position, (chapter["enddate"] - chapter["startdate"]).days,
                                         left=mdates.date2num(chapter["startdate"]), color=color)
@@ -184,18 +190,20 @@ class chapterTimelineEditor(QMainWindow):
                     self.rectangles.append((rect, chapter))  # Store the chapter with the corresponding rectangle
 
                     # Add chapter name to the center of the bar
+                    va = vertical_positions[j ]
+                    j = (j + 1)% 3
                     ax.text(
                         mdates.date2num(chapter["startdate"]) + (chapter["enddate"] - chapter["startdate"]).days / 2,
-                        plot_position,
+                        plot_position + (j/3) -(1/3),
                         chapter["chapter"],
-                        ha="center", va="center", color="black", fontsize = 20)
+                        ha="center", va='center', color="black", fontsize = scaledFontSize)
 
         # Adjust Y-axis to show names
         ax.set_yticks(range(1, len(plot_labels) + 1))
-        ax.set_yticklabels(plot_labels, fontsize = 20)
+        ax.set_yticklabels(plot_labels, fontsize = scaledFontSize)
 
         # Scale the X-ticks (dates) with the window size
-        ax.tick_params(axis='x', labelsize=20)
+        ax.tick_params(axis='x', labelsize=scaledFontSize)
 
         # Prevent layout issues
         self.figure.tight_layout()
@@ -206,8 +214,8 @@ class chapterTimelineEditor(QMainWindow):
     def get_scaled_font_size(self):
         # Scale font size based on figure size
         width, height = self.figure.get_size_inches()
-        scale_factor = width / 8  # Scale factor based on figure width (you can adjust this factor)
-        return max(10, int(scale_factor))  # Minimum font size of 10
+        scale_factor = height / 8  # Scale factor based on figure width (you can adjust this factor)
+        return max(20, int(scale_factor))  # Minimum font size of 10
 
     def update_chapter(self):
         if not self.selected_chapter:
@@ -262,8 +270,15 @@ class chapterTimelineEditor(QMainWindow):
 
     def on_canvas_click(self, event):
         # Check for click in each rectangle (chapter bar)
+
         for rect, chapter in self.rectangles:
             if rect.contains(event)[0]:  # Check if click is within the rectangle
+                self.update_chapter()
+                try:# Tijdelijk verwijderen signal om problemen te voorkomen
+                    self.startdate_date_entry.dateTimeChanged.disconnect()
+                    self.duur_entry.textChanged.disconnect()
+                except Exception: pass
+
                 self.selected_chapter = chapter
                 print(f"Selected chapter: {self.selected_chapter['chapter']}")
 
@@ -276,8 +291,16 @@ class chapterTimelineEditor(QMainWindow):
                 self.char_name_entry.setText(self.selected_chapter["char"])
                 self.synopsis_name_entry.setPlainText(self.selected_chapter["synopsis"])
 
+                # Bijwerken na verandering via signal
+                self.startdate_date_entry.dateTimeChanged.connect(lambda: self.update_chapter()) 
+                self.duur_entry.textChanged.connect(self.update_chapter)
+
+
                 self.update_timeline()  # Re-renddateer the timeline with the selected chapter highlighted
                 break  # Stop further checking after finding the clicked chapter
+
+                # Connect update event to edit fields
+
 
 
 # PyQt Application
