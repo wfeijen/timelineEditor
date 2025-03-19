@@ -137,6 +137,25 @@ class chapterTimelineEditor(QMainWindow):
 
         self.update_timeline()
 
+    def create_plot_groups(self, filtered_chapters):
+        plot_groups = {}
+        for chapter in filtered_chapters:
+            plot_list = chapter["plot"].split(",")
+            for p in plot_list:
+                plot = p.strip()
+                if plot not in plot_groups:
+                    plot_groups[plot] = []
+                plot_groups[plot].append(chapter)
+        # Nu de lijsten binnen plot_groups sorteren op begindatum en daarna einddatum om ze later verspringend te kunnen maken
+        for plot, chapters in plot_groups.items():
+            plot_groups[plot] = sorted(chapters, key = lambda x: (x["startdate"], x["enddate"]))
+
+        # for plot, chapters in plot_groups.items():
+        #     for chapter in chapters:
+        #         print(f'{plot}: {chapter["startdate"]}  , {chapter["enddate"]}')
+
+        return plot_groups
+
     def update_timeline(self):
         # Clear the canvas
         self.figure.clf()
@@ -160,47 +179,37 @@ class chapterTimelineEditor(QMainWindow):
         ax.set_title("chapter Timeline", fontsize = scaledFontSize)
 
         # Group chapters by plot
-        plot_groups = {}
-        for chapter in filtered_chapters:
-            plot_list = chapter["plot"].split(",")
-            for p in plot_list:
-                plot = p.strip()
-                if plot not in plot_groups:
-                    plot_groups[plot] = []
-                plot_groups[plot].append(chapter)
-
+        plot_groups = self.create_plot_groups(filtered_chapters)
+        plot_list = sorted(list(plot_groups.keys()), reverse=True)
         
         # Generate Y positions based on plot (each plot corresponds to a project)
-        plot_labels = sorted(list(plot_groups.keys()), reverse=True)
-        y_positions = {plot: idx + 1 for idx, plot in enumerate(plot_labels)}  # Assign Y positions to plots
+        plot_y_positions = {plot: idx + 1 for idx, plot in enumerate(plot_list)}  # Assign Y positions to plots
 
         # Draw each chapter on its respective plot
         self.rectangles = []  # List to store all rectangle objects (bars)
-        j = 0
-        for chapter in filtered_chapters:
-            color = "orange" if chapter == self.selected_chapter else "skyblue"  # Highlight selected chapter
-            plot_list = chapter["plot"].split(",")
-            for p in plot_list:
-                plot = p.strip()
-                plot_position = y_positions[plot]  # Get Y position for the chapter's plot
-                bar_container = ax.barh(plot_position, (chapter["enddate"] - chapter["startdate"]).days,
+        
+        for plot in plot_list:
+            j = 0
+            for chapter in plot_groups[plot]:
+                color = "orange" if chapter == self.selected_chapter else "skyblue"  # Highlight selected chapter
+                j = (j + 1)% 3
+                plot_position = plot_y_positions[plot] + (j/3) -(1/3)  # Get Y position for the chapter's plot
+                bar_container = ax.barh(plot_position, (chapter["enddate"] - chapter["startdate"]).days,0.3,
                                         left=mdates.date2num(chapter["startdate"]), color=color)
                 for rect in bar_container:  # Extract each rectangle from the BarContainer
                     rect.set_label(chapter["chapter"])  # Store the chapter name in the label
                     self.rectangles.append((rect, chapter))  # Store the chapter with the corresponding rectangle
 
-                    # Add chapter name to the center of the bar
-                    va = vertical_positions[j ]
-                    j = (j + 1)% 3
+                    # Add chapter name to the center of the bar                    
                     ax.text(
                         mdates.date2num(chapter["startdate"]) + (chapter["enddate"] - chapter["startdate"]).days / 2,
-                        plot_position + (j/3) -(1/3),
+                        plot_position,
                         chapter["chapter"],
                         ha="center", va='center', color="black", fontsize = scaledFontSize)
 
         # Adjust Y-axis to show names
-        ax.set_yticks(range(1, len(plot_labels) + 1))
-        ax.set_yticklabels(plot_labels, fontsize = scaledFontSize)
+        ax.set_yticks(range(1, len(plot_list) + 1))
+        ax.set_yticklabels(plot_list, fontsize = scaledFontSize)
 
         # Scale the X-ticks (dates) with the window size
         ax.tick_params(axis='x', labelsize=scaledFontSize)
@@ -214,8 +223,9 @@ class chapterTimelineEditor(QMainWindow):
     def get_scaled_font_size(self):
         # Scale font size based on figure size
         width, height = self.figure.get_size_inches()
-        scale_factor = height / 8  # Scale factor based on figure width (you can adjust this factor)
-        return max(20, int(scale_factor))  # Minimum font size of 10
+        scale_factor = min(20, int(height))  # Scale factor based on figure width (you can adjust this factor)
+        print(scale_factor)
+        return scale_factor  
 
     def update_chapter(self):
         if not self.selected_chapter:
