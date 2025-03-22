@@ -50,15 +50,28 @@ class File_handler:
         
         # Add new metadata 
         updated_lines = [line for line in lines if False]
+        name_not_in_headline_yet = True
         for line in lines:
-            updated_lines.append(line)
-            if line.startswith("%%~date:"):
-                updated_lines.append(f"@plot: {metadata['plot']}\n")
-                updated_lines.append(f"@time: {metadata['startdate'].strftime('%Y-%m-%d')}\n")
-                updated_lines.append(f"@time: {metadata['enddate'].strftime('%Y-%m-%d')}\n")
-                updated_lines.append(f"@pov: {metadata['pov']}\n")
-                updated_lines.append(f"@char: {metadata['char']}\n")
-                updated_lines.append(f"% Synopsis: {metadata['synopsis']}\n")
+            # Kop gelijk trekken met naam
+            if  line.startswith("#") and name_not_in_headline_yet:                 
+                if line.startswith("# "): 
+                    updated_lines.append(f"# {metadata['chapter']}\n")
+                    name_not_in_headline_yet = False
+                elif line.startswith("## "): 
+                    updated_lines.append(f"## {metadata['chapter']}\n")
+                    name_not_in_headline_yet = False
+                elif line.startswith("### "): 
+                    updated_lines.append(f"### {metadata['chapter']}\n")
+                    name_not_in_headline_yet = False
+            else:               
+                updated_lines.append(line)
+                if line.startswith("%%~date:"):
+                    updated_lines.append(f"@plot: {metadata['plot']}\n")
+                    updated_lines.append(f"@time: {metadata['startdate'].strftime('%Y-%m-%d')}\n")
+                    updated_lines.append(f"@time: {metadata['enddate'].strftime('%Y-%m-%d')}\n")
+                    updated_lines.append(f"@pov: {metadata['pov']}\n")
+                    updated_lines.append(f"@char: {metadata['char']}\n")
+                    updated_lines.append(f"% Synopsis: {metadata['synopsis']}\n")
         with open(self.path, "w", encoding="utf-8") as file:
             file.writelines(updated_lines)
 

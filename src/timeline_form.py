@@ -17,6 +17,7 @@ class chapterTimelineEditor(QMainWindow):
 
         # load Data from dir ["chapter", "path", "plot", "synopsis", "startdate", "enddate"]
         self.directory_handler = Directory_handler("/home/willem/Documents/Eigen maaksels/Verhalen staan buiten bin en in dropbox/radio controlled/content")
+        # self.directory_handler = Directory_handler("/home/willem/Documents/Eigen maaksels/Verhalen staan buiten bin en in dropbox/test/content")
         self.chapterlist = self.directory_handler.get_metadata()
         self.selected_chapter = None  # Track the currently selected chapter
 
@@ -160,7 +161,6 @@ class chapterTimelineEditor(QMainWindow):
         # Clear the canvas
         self.figure.clf()
         scaledFontSize = self.get_scaled_font_size()
-        vertical_positions = ['top', 'bottom', 'center']
 
         # Matplotlib part for plotting the timeline
         ax = self.figure.add_subplot(111)
@@ -224,7 +224,6 @@ class chapterTimelineEditor(QMainWindow):
         # Scale font size based on figure size
         width, height = self.figure.get_size_inches()
         scale_factor = min(20, int(height))  # Scale factor based on figure width (you can adjust this factor)
-        print(scale_factor)
         return scale_factor  
 
     def update_chapter(self):

@@ -4,15 +4,20 @@ from File_handler import File_handler
 class Directory_handler:
     def __init__(self, directory):
         self.directory = directory
-        self.file_handlers = {}       
-        for filename in os.listdir(directory):
-            if filename.endswith(".nwd"):
-                path = os.path.join(directory, filename)
-                file_handler = File_handler(path)
-                self.file_handlers[path] = file_handler    
+        self.list_files()
 
+
+    def list_files(self):
+        self.file_handlers = {}       
+        for filename in os.listdir(self.directory):
+            if filename.endswith(".nwd"):
+                path = os.path.join(self.directory, filename)
+                file_handler = File_handler(path)
+                self.file_handlers[path] = file_handler 
 
     def get_metadata(self):
+        self.list_files()
+
         data = []
         
         for file_handler in self.file_handlers.values():
