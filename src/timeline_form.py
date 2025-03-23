@@ -4,9 +4,10 @@ import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QLineEdit, QPushButton, QFormLayout, QHBoxLayout, QPlainTextEdit, QLabel, QSlider, QDateEdit
+from PyQt5.QtGui import QKeyEvent
 from PyQt5.QtCore import Qt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-from Directory_handler import Directory_handler
+from Document import Document
 matplotlib.use('Qt5Agg')  # Ensure the correct backend for PyQt5
 
 
@@ -16,9 +17,9 @@ class chapterTimelineEditor(QMainWindow):
         super().__init__()
 
         # load Data from dir ["chapter", "path", "plot", "synopsis", "startdate", "enddate"]
-        self.directory_handler = Directory_handler("/home/willem/Documents/Eigen maaksels/Verhalen staan buiten bin en in dropbox/radio controlled/content")
+        self.document = Document("/home/willem/Documents/Eigen maaksels/Verhalen staan buiten bin en in dropbox/radio controlled/content")
         # self.directory_handler = Directory_handler("/home/willem/Documents/Eigen maaksels/Verhalen staan buiten bin en in dropbox/test/content")
-        self.chapterlist = self.directory_handler.get_metadata()
+        self.document.read()
         self.selected_chapter = None  # Track the currently selected chapter
 
         self.setWindowTitle("Interactive Timeline Editor")
@@ -26,6 +27,7 @@ class chapterTimelineEditor(QMainWindow):
 
         self.central_widget = QWidget(self)
         self.setCentralWidget(self.central_widget)
+        self.ctrl_pressed = False
 
         layout = QVBoxLayout(self.central_widget)
 
@@ -102,15 +104,24 @@ class chapterTimelineEditor(QMainWindow):
 
         # Connect the canvas click event to the chapter selection
         self.canvas.mpl_connect('button_press_event', self.on_canvas_click)
+
+    def keyPressEvent(self, event):
+        if isinstance(event, QKeyEvent):
+            if event.key() == 16777249:
+                self.ctrl_pressed = True
+            print("ctrl aan")
+
+    def keyReleaseEvent(self, event):
+        if isinstance(event, QKeyEvent):
+            if event.key() == 16777249:
+                self.ctrl_pressed = False
+            print("ctrl uit")
         
     
     def setup_sliders(self):
         """Initialize sliders based on data range."""
-        if not self.chapterlist:
-            return
-
-        min_date = min(ch["startdate"] for ch in self.chapterlist)
-        max_date = max(ch["enddate"] for ch in self.chapterlist)
+        min_date = min(ch.startdate for ch in self.document.chapters)
+        max_date = max(ch.enddate for ch in self.document.chapters)
 
         # Convert dates to numerical format for sliders
         min_num = mdates.date2num(min_date)
@@ -125,6 +136,7 @@ class chapterTimelineEditor(QMainWindow):
         self.end_slider.setValue(int(max_num))
 
         self.update_slider_labels()
+
 
     def update_slider_labels(self):
         start_filter = mdates.num2date(self.start_slider.value()).replace(tzinfo=None)
@@ -141,7 +153,7 @@ class chapterTimelineEditor(QMainWindow):
     def create_plot_groups(self, filtered_chapters):
         plot_groups = {}
         for chapter in filtered_chapters:
-            plot_list = chapter["plot"].split(",")
+            plot_list = chapter.plot.split(",")
             for p in plot_list:
                 plot = p.strip()
                 if plot not in plot_groups:
@@ -149,7 +161,7 @@ class chapterTimelineEditor(QMainWindow):
                 plot_groups[plot].append(chapter)
         # Nu de lijsten binnen plot_groups sorteren op begindatum en daarna einddatum om ze later verspringend te kunnen maken
         for plot, chapters in plot_groups.items():
-            plot_groups[plot] = sorted(chapters, key = lambda x: (x["startdate"], x["enddate"]))
+            plot_groups[plot] = sorted(chapters, key = lambda x: (x.startdate, x.enddate))
 
         # for plot, chapters in plot_groups.items():
         #     for chapter in chapters:
@@ -169,8 +181,8 @@ class chapterTimelineEditor(QMainWindow):
         end_filter = mdates.num2date(self.end_slider.value()).date()
 
         filtered_chapters = [
-            ch for ch in self.chapterlist 
-            if ch["startdate"] >= start_filter and ch["enddate"] <= end_filter
+            ch for ch in self.document.chapters
+            if ch.startdate >= start_filter and ch.enddate <= end_filter
         ]
 
         # Set date formatting
@@ -194,17 +206,17 @@ class chapterTimelineEditor(QMainWindow):
                 color = "orange" if chapter == self.selected_chapter else "skyblue"  # Highlight selected chapter
                 j = (j + 1)% 3
                 plot_position = plot_y_positions[plot] + (j/3) -(1/3)  # Get Y position for the chapter's plot
-                bar_container = ax.barh(plot_position, (chapter["enddate"] - chapter["startdate"]).days,0.3,
-                                        left=mdates.date2num(chapter["startdate"]), color=color)
+                bar_container = ax.barh(plot_position, (chapter.enddate - chapter.startdate).days,0.3,
+                                        left=mdates.date2num(chapter.startdate), color=color)
                 for rect in bar_container:  # Extract each rectangle from the BarContainer
-                    rect.set_label(chapter["chapter"])  # Store the chapter name in the label
+                    rect.set_label(chapter.chapter)  # Store the chapter name in the label
                     self.rectangles.append((rect, chapter))  # Store the chapter with the corresponding rectangle
 
                     # Add chapter name to the center of the bar                    
                     ax.text(
-                        mdates.date2num(chapter["startdate"]) + (chapter["enddate"] - chapter["startdate"]).days / 2,
+                        mdates.date2num(chapter.startdate) + (chapter.enddate - chapter.startdate).days / 2,
                         plot_position,
-                        chapter["chapter"],
+                        chapter.chapter,
                         ha="center", va='center', color="black", fontsize = scaledFontSize)
 
         # Adjust Y-axis to show names
@@ -250,13 +262,13 @@ class chapterTimelineEditor(QMainWindow):
             print(f"Error: {e}")   
        
         try:
-            self.selected_chapter["chapter"] = name
-            self.selected_chapter["startdate"] = startdate_datetime
-            self.selected_chapter["enddate"] = enddate_datetime
-            self.selected_chapter["plot"] = plot
-            self.selected_chapter["pov"] = pov
-            self.selected_chapter["char"] = char
-            self.selected_chapter["synopsis"] = synopsis
+            self.selected_chapter.chapter = name
+            self.selected_chapter.startdate = startdate_datetime
+            self.selected_chapter.enddate = enddate_datetime
+            self.selected_chapter.plot = plot
+            self.selected_chapter.pov = pov
+            self.selected_chapter.char = char
+            self.selected_chapter.synopsis = synopsis
 
             if mdates.date2num(startdate_datetime) < self.start_slider.minimum() or mdates.date2num(enddate_datetime) > self.end_slider.maximum():
                 self.setup_sliders()
@@ -266,10 +278,10 @@ class chapterTimelineEditor(QMainWindow):
             print(f"Error: {e}")
     
     def save_timelines(self):
-        self.directory_handler.set_metadata(self.chapterlist)
+        self.document.write()
 
     def reload_timelines(self):
-        self.chapterlist = self.directory_handler.get_metadata()
+        self.document.read()
         self.selected_chapter = None  # Track the currently selected chapter
         self.update_timeline()
 
@@ -288,17 +300,19 @@ class chapterTimelineEditor(QMainWindow):
                     self.duur_entry.textChanged.disconnect()
                 except Exception: pass
 
+
+
                 self.selected_chapter = chapter
-                print(f"Selected chapter: {self.selected_chapter['chapter']}")
+                print(f"Selected chapter: {self.selected_chapter.chapter}")
 
                 # Populate the text boxes with the selected chapter information
-                self.chapter_name_entry.setText(self.selected_chapter["chapter"])
-                self.startdate_date_entry.setDate(self.selected_chapter["startdate"])
-                self.duur_entry.setText(str((self.selected_chapter["enddate"]-self.selected_chapter["startdate"]).days))
-                self.plot_name_entry.setText(self.selected_chapter["plot"])
-                self.pov_name_entry.setText(self.selected_chapter["pov"])
-                self.char_name_entry.setText(self.selected_chapter["char"])
-                self.synopsis_name_entry.setPlainText(self.selected_chapter["synopsis"])
+                self.chapter_name_entry.setText(self.selected_chapter.chapter)
+                self.startdate_date_entry.setDate(self.selected_chapter.startdate)
+                self.duur_entry.setText(str((self.selected_chapter.enddate-self.selected_chapter.startdate).days))
+                self.plot_name_entry.setText(self.selected_chapter.plot)
+                self.pov_name_entry.setText(self.selected_chapter.pov)
+                self.char_name_entry.setText(self.selected_chapter.char)
+                self.synopsis_name_entry.setPlainText(self.selected_chapter.synopsis)
 
                 # Bijwerken na verandering via signal
                 self.startdate_date_entry.dateTimeChanged.connect(lambda: self.update_chapter()) 
